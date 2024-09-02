@@ -13,7 +13,7 @@ packaging = "^24.1"
 typing-extensions = "^4.12.2"
 
 [tool.poetry.scripts]
-server = "reactive_word_cloud.server:main"
+server = "reactive_word_cloud.server:start_server"
 
 [tool.poetry.group.dev.dependencies]
 types-confluent-kafka = "^1.2.2"
