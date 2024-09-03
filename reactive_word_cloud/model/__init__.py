@@ -4,7 +4,7 @@ from typing import Dict, Self
 
 
 @dataclass
-class ChatMessage():
+class ChatMessage:
     sender: str
     recipient: str
     text: str
@@ -26,3 +26,11 @@ class ChatMessage():
 
     def __str__(self):
         return f'{self.sender} to {self.recipient}: {self.text}'
+
+
+@dataclass
+class Counts:
+    counts_by_word: Dict[str, int]
+
+    def to_json(self) -> str:
+        return json.dumps({'countsByWord': self.counts_by_word})

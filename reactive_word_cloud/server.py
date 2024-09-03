@@ -6,8 +6,8 @@ from reactivex import Observable
 from reactivex import operators as ops
 from websockets.sync.server import ServerConnection, serve
 
-from .model import ChatMessage
-from .service.word_cloud import chat_messages
+from .model import Counts
+from .service.word_cloud import chat_messages, word_counts
 
 
 def start_server():
@@ -19,27 +19,28 @@ def start_server():
         'auto.offset.reset': 'earliest'
     }
     def handle(ws_conn: ServerConnection):
+        print('websocket connection established')
         def raise_on_close(_: Any) -> Observable[Any]:
             try: ws_conn.recv(timeout=0)
             except TimeoutError: pass
             return rx.empty()
 
-        def publish_chat_message(chat_message: ChatMessage) -> ChatMessage:
-            ws_conn.send(chat_message.to_json())
-            return chat_message
+        def publish(counts: Counts):
+            ws_conn.send(counts.to_json())
 
         closed: Observable[None] = rx.timer(
             duetime=timedelta(milliseconds=10), period=timedelta(milliseconds=10)
         ) >> ops.concat_map(raise_on_close)
 
-        publisher: Observable[Any] = chat_messages(
+        publisher: Observable[Counts | None] = chat_messages(
             kafka_conf=kafka_conf, topic_name='word-cloud.chat-message'
-        ) \
-            >> ops.map(publish_chat_message) \
+        ) >> word_counts \
+            >> ops.debounce(timedelta(milliseconds=100)) \
+            >> ops.do_action(publish) \
             >> ops.merge(closed) \
-            >> ops.catch(rx.just(())) # RxPY gets sad when a stream is empty
+            >> ops.catch(rx.just(None)) # RxPY gets sad when a stream is empty
         publisher.run()
-        print('connection closed')
+        print('websocket connection closed')
 
     with serve(handle, 'localhost', port) as server:
         print(f'server listening on port {port}')
