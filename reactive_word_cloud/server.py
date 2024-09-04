@@ -21,7 +21,8 @@ def start_server():
     counts: Observable[DebuggingCounts] = chat_messages(kafka_conf=kafka_conf, topic_name='word-cloud.chat-message') \
         >> debugging_word_counts \
         >> ops.publish_value(DebuggingCounts(history=[], counts_by_word={})) \
-        >> ops.ref_count()
+        >> ops.ref_count() \
+        >> ops.skip(1)
     def handle(ws_conn: ServerConnection):
         print('websocket connection established')
         def raise_on_close(_: Any) -> Observable[Any]:
