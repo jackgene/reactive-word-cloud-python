@@ -168,9 +168,7 @@ def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[Cha
                 chat_message = ChatMessage.from_json(value.decode('utf-8'))
             case _:
                 chat_message = None
-        if chat_message is None:
-            return rx.empty()
-        return rx.just(chat_message)
+        return rx.empty() if chat_message is None else rx.just(chat_message)
     return rx.create(consume_messages) \
         >> ops.filter(not_error) \
         >> ops.concat_map(extract_chat_message)
@@ -184,13 +182,13 @@ def normalize_text(msg: ChatMessage) -> SenderAndText:
 def split_into_words(
     sender_text: SenderAndText
 ) -> Observable[SenderAndWord]:
-    def split_and_reverse(text: str) -> Iterable[str]:
-        return reversed(text.split(' '))
-    def make_sender_word(word: str) -> SenderAndWord:
-        return SenderAndWord(sender_text.sender, word)
-    return rx.just(sender_text.text) \
-        >> ops.flat_map(split_and_reverse) \
-        >> ops.map(make_sender_word)
+    text: str = sender_text.text
+    split_reversed: Iterable[str] = reversed(text.split(' '))
+    sender_words: Iterable[SenderAndWord] = [
+        SenderAndWord(sender_text.sender, word)
+        for word in split_reversed
+    ]
+    return rx.from_iterable(sender_words)
 
 def is_valid_word(sender_word: SenderAndWord) -> bool:
     word: str = sender_word.word
@@ -206,11 +204,10 @@ def update_words_for_sender(
     )
     new_words: List[str] = list(OrderedDict(
         (w, ()) for w in ([sender_word.word] + old_words)
-    ).keys())
-
+    ).keys())[0:max_words_per_sender]
     return words_by_sender | {sender_word.sender: new_words}
 
-def count_words(
+def count_senders_by_word(
     words_by_sender: Dict[str, List[str]]
 ) -> Dict[str, int]:
     words: Sequence[str] = sorted(
@@ -229,7 +226,8 @@ def word_counts(
         >> ops.concat_map(split_into_words) \
         >> ops.filter(is_valid_word) \
         >> ops.scan(update_words_for_sender, seed={}) \
-        >> ops.map(count_words) >> ops.map(Counts)
+        >> ops.map(count_senders_by_word) \
+        >> ops.map(Counts)
 
 def debugging_word_counts(
     chat_messages: Observable[ChatMessage]
@@ -260,7 +258,7 @@ def debugging_word_counts(
                 old_words = extracted_word.words_by_sender.get(msg.sender, [])
                 new_words: List[str] = list(OrderedDict((w, ()) for w in ([word] + old_words)).keys())
                 new_words_by_sender: Dict[str, List[str]] = old_words_by_sender | {msg.sender: new_words}
-                counts_by_word: Dict[str, int] = count_words(new_words_by_sender)
+                counts_by_word: Dict[str, int] = count_senders_by_word(new_words_by_sender)
                 extracted_word = ExtractedWord(
                     word, True, new_words_by_sender, counts_by_word
                 )
