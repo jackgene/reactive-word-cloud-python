@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from typing import Any, Callable, Generator, Optional, TypeVar, Union, cast, overload
+from typing import Any, Callable, Generator, Optional, Self, TypeVar, Union, cast, overload
 
 from reactivex import abc
+from reactivex.abc.observable import ObservableBase
 from reactivex.disposable import Disposable
 from reactivex.scheduler import CurrentThreadScheduler
 from reactivex.scheduler.eventloop import AsyncIOScheduler
@@ -21,6 +22,7 @@ _F = TypeVar("_F")
 _G = TypeVar("_G")
 
 _T_out = TypeVar("_T_out", covariant=True)
+_T_in = TypeVar("_T_in", covariant=True, bound=ObservableBase)
 
 
 class Observable(abc.ObservableBase[_T_out]):
@@ -353,7 +355,7 @@ class Observable(abc.ObservableBase[_T_out]):
 
         return slice_(start, stop, step)(self)
 
-    def __rshift__(self, op: Callable[[Observable[_T_out]], Observable[_A]]) -> Observable[_A]:
+    def __rshift__(self, op: Callable[[Self[_T_out]], _T_in]) -> _T_in:
         return self.pipe(op)
 
 __all__ = ["Observable"]

@@ -17,6 +17,7 @@ server = "reactive_word_cloud.server:start_server"
 
 [tool.poetry.group.dev.dependencies]
 types-confluent-kafka = "^1.2.2"
+pyright = "^1.1.378"
 
 [build-system]
 requires = ["poetry-core"]
