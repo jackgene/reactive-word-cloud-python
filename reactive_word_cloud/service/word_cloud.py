@@ -144,7 +144,6 @@ def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[Cha
                 msg: Message | None = consumer.poll(timeout=1.0)
                 # consumer.commit(asynchronous=False)
                 if msg is not None:
-                    print(f'consuming: {msg.value()}')
                     observer.on_next(msg)
         except Exception as e:
             observer.on_error(e)
