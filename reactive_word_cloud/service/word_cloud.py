@@ -1,6 +1,5 @@
 import re
 from collections import OrderedDict
-from dataclasses import dataclass
 from itertools import groupby
 from typing import Dict, Iterable, List, Sequence, Set, TypeVar
 
@@ -16,16 +15,6 @@ from reactive_word_cloud.model import *
 
 L = TypeVar('L')
 R = TypeVar('R')
-
-@dataclass
-class SenderAndText:
-    sender: str
-    text: str
-
-@dataclass
-class SenderAndWord:
-    sender: str
-    word: str
 
 max_words_per_sender: int = 3
 min_word_len: int = 3
@@ -134,7 +123,7 @@ stop_words: Set[str] = {
     'yourselves'
 }
 
-def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[ChatMessage]:
+def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[SenderAndText]:
     consumer: Consumer = Consumer(kafka_conf)
     def consume_messages(observer: ObserverBase[Message], scheduler: SchedulerBase | None) -> DisposableBase:
         try:
@@ -157,25 +146,25 @@ def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[Cha
     def not_error(msg: Message) -> bool:
         return not msg.error()
 
-    def extract_chat_message(msg: Message) -> Observable[ChatMessage]:
+    def extract_chat_message(msg: Message) -> Observable[SenderAndText]:
         value: str | bytes | None = msg.value()
-        chat_message: ChatMessage | None
+        sender_text: SenderAndText | None
         match value:
             case str():
-                chat_message = ChatMessage.from_json(value)
+                sender_text = SenderAndText.from_json(value)
             case bytes():
-                chat_message = ChatMessage.from_json(value.decode('utf-8'))
+                sender_text = SenderAndText.from_json(value.decode('utf-8'))
             case _:
-                chat_message = None
-        return rx.empty() if chat_message is None else rx.just(chat_message)
+                sender_text = None
+        return rx.empty() if sender_text is None else rx.just(sender_text)
     return rx.create(consume_messages) \
         >> ops.filter(not_error) \
         >> ops.concat_map(extract_chat_message)
 
-def normalize_text(msg: ChatMessage) -> SenderAndText:
+def normalize_text(sender_text: SenderAndText) -> SenderAndText:
     return SenderAndText(
-        msg.sender,
-        re.sub(r'[^\w]+', ' ', msg.text).strip().lower()
+        sender_text.sender,
+        re.sub(r'[^\w]+', ' ', sender_text.text).strip().lower()
     )
 
 def split_into_words(
@@ -218,9 +207,9 @@ def count_senders_by_word(
     return { w: sum([1 for _ in g]) for w, g in groupby(words) }
 
 def word_counts(
-    chat_messages: Observable[ChatMessage]
+    src_msgs: Observable[SenderAndText]
 ) -> Observable[Counts]:
-    return chat_messages \
+    return src_msgs \
         >> ops.map(normalize_text) \
         >> ops.concat_map(split_into_words) \
         >> ops.filter(is_valid_word) \
@@ -229,23 +218,23 @@ def word_counts(
         >> ops.map(Counts)
 
 def debugging_word_counts(
-    chat_messages: Observable[ChatMessage]
+    src_msgs: Observable[SenderAndText]
 ) -> Observable[DebuggingCounts]:
     def normalize_split_validate(
-        msg: ChatMessage
-    ) -> tuple[ChatMessage, str, Sequence[tuple[str, bool]]]:
-        normalized_text: str = normalize_text(msg=msg).text
+        msg: SenderAndText
+    ) -> tuple[SenderAndText, str, Sequence[tuple[str, bool]]]:
+        normalized_text: str = normalize_text(sender_text=msg).text
         words: List[str] = normalized_text.split(' ')
 
         return (msg, normalized_text, [(word, is_valid_word(SenderAndWord('', word))) for word in words])
 
     def aggregate(
         accum: tuple[DebuggingCounts, Dict[str, List[str]]],
-        next: tuple[ChatMessage, str, Sequence[tuple[str, bool]]]
+        next: tuple[SenderAndText, str, Sequence[tuple[str, bool]]]
     ) -> tuple[DebuggingCounts, Dict[str, List[str]]]:
         counts: DebuggingCounts = accum[0]
         old_words_by_sender: Dict[str, List[str]] = accum[1]
-        msg: ChatMessage = next[0]
+        msg: SenderAndText = next[0]
         normalized_text: str = next[1]
         split_words: Sequence[tuple[str, bool]] = next[2]
 
@@ -255,7 +244,7 @@ def debugging_word_counts(
             if is_valid:
                 old_words: List[str] # This has to be a separate line, or PyRight gets sad
                 old_words = extracted_word.words_by_sender.get(msg.sender, [])
-                new_words: List[str] = list(OrderedDict((w, ()) for w in ([word] + old_words)).keys())
+                new_words: List[str] = list(OrderedDict((w, ()) for w in ([word] + old_words)).keys())[0:max_words_per_sender]
                 new_words_by_sender: Dict[str, List[str]] = old_words_by_sender | {msg.sender: new_words}
                 counts_by_word: Dict[str, int] = count_senders_by_word(new_words_by_sender)
                 extracted_word = ExtractedWord(
@@ -278,7 +267,7 @@ def debugging_word_counts(
     def left[L, R](pair: tuple[L, R]) -> L:
         return pair[0]
     
-    return chat_messages \
+    return src_msgs \
         >> ops.map(normalize_split_validate) \
         >> ops.scan(aggregate, seed=(DebuggingCounts([], {}), {})) \
         >> ops.map(left)

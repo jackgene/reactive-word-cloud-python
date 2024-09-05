@@ -4,9 +4,8 @@ from typing import Dict, List, Self, Sequence
 
 
 @dataclass
-class ChatMessage:
+class SenderAndText:
     sender: str
-    recipient: str
     text: str
 
     @classmethod
@@ -14,18 +13,23 @@ class ChatMessage:
         try:
             data: Dict[str, str] = json.loads(serialized)
             sender: str | None = data.get('s')
-            recipient: str | None = data.get('r')
             text: str | None = data.get('t')
-            if sender is None or recipient is None or text is None: return None
-            return cls(sender=data['s'], recipient=data['r'], text=data['t'])
+            if sender is None or text is None: return None
+            return cls(sender=sender, text=text)
         except:
             return None
 
     def to_json(self) -> str:
-        return json.dumps({'s': self.sender, 'r': self.recipient, 't': self.text})
+        return json.dumps({'s': self.sender, 't': self.text})
 
     def __str__(self):
-        return f'{self.sender} to {self.recipient}: {self.text}'
+        return f'{self.sender}: {self.text}'
+
+
+@dataclass
+class SenderAndWord:
+    sender: str
+    word: str
 
 
 @dataclass
@@ -56,7 +60,7 @@ class ExtractedWord:
 
 @dataclass
 class Event:
-    chat_message: ChatMessage
+    chat_message: SenderAndText
     normalized_text: str
     words: Sequence[ExtractedWord]
 
