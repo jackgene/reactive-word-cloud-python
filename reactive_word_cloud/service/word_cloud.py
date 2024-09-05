@@ -156,6 +156,8 @@ def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[Sen
                 sender_text = SenderAndText.from_json(value.decode('utf-8'))
             case _:
                 sender_text = None
+        if sender_text is not None:
+            print(f'consumed: {sender_text.to_json()}')
         return rx.empty() if sender_text is None else rx.just(sender_text)
     return rx.create(consume_messages) \
         >> ops.filter(not_error) \
