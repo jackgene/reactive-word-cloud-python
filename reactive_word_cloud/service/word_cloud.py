@@ -188,13 +188,12 @@ def update_words_for_sender(
     words_by_sender: Dict[str, List[str]],
     sender_word: SenderAndWord
 ) -> Dict[str, List[str]]:
-    old_words: List[str] = words_by_sender.get(
-        sender_word.sender, []
-    )
-    new_words: List[str] = list(
-        dict.fromkeys([sender_word.word] + old_words)
-    )[0:max_words_per_sender]
-    return words_by_sender | {sender_word.sender: new_words}
+    sender: str = sender_word.sender
+    word: str = sender_word.word
+    old_words: List[str] = words_by_sender.get(sender, [])
+    new_words: List[str] = list(dict.fromkeys([word] + old_words))
+    new_words = new_words[0:max_words_per_sender]
+    return words_by_sender | {sender: new_words}
 
 def count_senders_by_word(
     words_by_sender: Dict[str, List[str]]
