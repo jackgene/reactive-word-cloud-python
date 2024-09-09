@@ -240,7 +240,7 @@ def debugging_word_counts(
         split_words: Sequence[tuple[str, bool]] = next[2]
 
         extracted_words: List[ExtractedWord] = []
-        extracted_word: ExtractedWord = ExtractedWord('', False, old_words_by_sender, {})
+        extracted_word: ExtractedWord = ExtractedWord('', False, old_words_by_sender, count_senders_by_word(old_words_by_sender))
         for (word, is_valid) in reversed(split_words):
             if is_valid:
                 old_words: List[str] # This has to be a separate line, or PyRight gets sad
