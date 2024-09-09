@@ -199,13 +199,12 @@ def update_words_for_sender(
 def count_senders_by_word(
     words_by_sender: Dict[str, List[str]]
 ) -> Dict[str, int]:
-    words: Sequence[str] = sorted(
-        [ word 
-            for _, words in words_by_sender.items()
-            for word in words
-        ]
-    )
-    return { word: len([*grp]) for word, grp in groupby(words) }
+    words: Sequence[str] = sorted([
+        word 
+        for _, words in words_by_sender.items()
+        for word in words
+    ])
+    return {word: len([*grp]) for word, grp in groupby(words)}
 
 def word_counts(
     src_msgs: Observable[SenderAndText]
