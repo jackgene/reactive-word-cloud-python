@@ -1,5 +1,4 @@
 import re
-from collections import OrderedDict
 from itertools import groupby
 from typing import Dict, Iterable, List, Sequence, Set, TypeVar
 
@@ -192,9 +191,9 @@ def update_words_for_sender(
     old_words: List[str] = words_by_sender.get(
         sender_word.sender, []
     )
-    new_words: List[str] = list(OrderedDict(
-        (w, ()) for w in ([sender_word.word] + old_words)
-    ).keys())[0:max_words_per_sender]
+    new_words: List[str] = list(
+        dict.fromkeys([sender_word.word] + old_words)
+    )[0:max_words_per_sender]
     return words_by_sender | {sender_word.sender: new_words}
 
 def count_senders_by_word(
@@ -206,7 +205,7 @@ def count_senders_by_word(
             for word in words
         ]
     )
-    return { w: sum([1 for _ in g]) for w, g in groupby(words) }
+    return { word: len([*grp]) for word, grp in groupby(words) }
 
 def word_counts(
     src_msgs: Observable[SenderAndText]
@@ -246,7 +245,7 @@ def debugging_word_counts(
             if is_valid:
                 old_words: List[str] # This has to be a separate line, or PyRight gets sad
                 old_words = extracted_word.words_by_sender.get(msg.sender, [])
-                new_words: List[str] = list(OrderedDict((w, ()) for w in ([word] + old_words)).keys())[0:max_words_per_sender]
+                new_words: List[str] = list(dict.fromkeys([word] + old_words))[0:max_words_per_sender]
                 new_words_by_sender: Dict[str, List[str]] = old_words_by_sender | {msg.sender: new_words}
                 counts_by_word: Dict[str, int] = count_senders_by_word(new_words_by_sender)
                 extracted_word = ExtractedWord(
