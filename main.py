@@ -36,14 +36,15 @@ def start_server():
             duetime=timedelta(milliseconds=10), period=timedelta(milliseconds=10)
         ) >> ops.concat_map(raise_on_close)
 
-        publisher: Observable[DebuggingCounts | None] = counts \
+        publisher: Observable[int] = counts \
             >> ops.debounce(timedelta(milliseconds=100)) \
             >> ops.do_action(publish) \
             >> ops.merge(closed) \
-            >> ops.catch(rx.just(None)) # RxPY gets sad when a stream is empty
-        publisher.run()
+            >> ops.catch(rx.empty()) \
+            >> ops.reduce(lambda acc, _: acc + 1, seed=0)
+        published: int = publisher.run()
         ws_conn.close()
-        print('websocket connection closed')
+        print(f'websocket connection closed (published {published} messages)')
 
     with serve(handle, '0.0.0.0', port) as server:
         print(f'server listening on port {port}')
