@@ -124,23 +124,10 @@ stop_words: Set[str] = {
 
 def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[SenderAndText]:
     consumer: Consumer = Consumer(kafka_conf)
-    def consume_messages(observer: ObserverBase[Message], scheduler: SchedulerBase | None) -> DisposableBase:
-        try:
-            consumer.subscribe([topic_name])
-
-            while True:
-                msg: Message | None = consumer.poll(timeout=1.0)
-                # consumer.commit(asynchronous=False)
-                if msg is not None:
-                    observer.on_next(msg)
-        except Exception as e:
-            observer.on_error(e)
-        finally:
-            # consumer.close()
-            observer.on_completed()
-        if not isinstance(observer, DisposableBase):
-            raise
-        return observer
+    consumer.subscribe([topic_name])
+    def consume_message(consumer: Consumer) -> rx.Observable[Message]:
+        msg: Message | None = consumer.poll(timeout=1.0)
+        return rx.just(msg) if msg is not None else rx.empty()
 
     def not_error(msg: Message) -> bool:
         return not msg.error()
@@ -158,7 +145,8 @@ def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[Sen
         if sender_text is not None:
             print(f'consumed: {sender_text.to_json()}')
         return rx.empty() if sender_text is None else rx.just(sender_text)
-    return rx.create(consume_messages) \
+    return rx.repeat_value(consumer) \
+        >> ops.concat_map(consume_message) \
         >> ops.filter(not_error) \
         >> ops.concat_map(extract_chat_message)
 
