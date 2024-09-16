@@ -4,6 +4,8 @@ from typing import Any, Dict
 import reactivex as rx
 from reactivex import Observable
 from reactivex import operators as ops
+from reactivex.scheduler import ThreadPoolScheduler
+from reactivex.subject import BehaviorSubject
 from websockets.sync.server import ServerConnection, serve
 
 from reactive_word_cloud.model import DebuggingCounts
@@ -18,10 +20,12 @@ def start_server():
         'enable.auto.commit': 'false',
         'auto.offset.reset': 'earliest'
     }
-    counts: Observable[DebuggingCounts] = chat_messages(kafka_conf=kafka_conf, topic_name='word-cloud.chat-message') \
-        >> debugging_word_counts \
-        >> ops.publish_value(DebuggingCounts(history=[], counts_by_word={})) \
-        >> ops.ref_count()
+    counts: Observable[DebuggingCounts] = BehaviorSubject(
+        DebuggingCounts(history=[], counts_by_word={})
+    )
+    debugging_word_counts(
+        chat_messages(kafka_conf=kafka_conf, topic_name='word-cloud.chat-message')
+    ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
     def handle(ws_conn: ServerConnection):
         print('websocket connection established')
         def raise_on_close(_: Any) -> Observable[Any]:
