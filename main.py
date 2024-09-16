@@ -1,6 +1,8 @@
+import asyncio
 import sys
 import tomllib
 from datetime import timedelta
+from typing import Literal
 
 import reactivex as rx
 import reactive_word_cloud.user_input as user_input
@@ -8,14 +10,14 @@ from reactivex import Observable
 from reactivex import operators as ops
 from reactivex.scheduler import ThreadPoolScheduler
 from reactivex.subject import BehaviorSubject
-from websockets.sync.server import ServerConnection, serve
+from websockets.asyncio.server import ServerConnection, serve
 
 from reactive_word_cloud.config import *
 from reactive_word_cloud.model import DebuggingCounts, SenderAndText
 from reactive_word_cloud.service import WordCloudService
 
 
-def start_server():
+async def start_server():
     with open('config.toml', 'rb') as f:
         config: dict[str, Any] = tomllib.load(f)
 
@@ -35,39 +37,39 @@ def start_server():
 
     port: int = HttpConfig.from_dict(config['http']).port
     conns: int = 0
-    def handle(ws_conn: ServerConnection):
+    async def handle(ws_conn: ServerConnection):
         nonlocal conns
         conns += 1
         print(f'+1 websocket connection (={conns})')
 
-        def raise_on_close(_: Any) -> Observable[Any]:
-            try: ws_conn.recv(timeout=0)
-            except TimeoutError: pass
-            return rx.empty()
+        async def raise_on_close() -> Literal["done"]:
+            try: await ws_conn.recv()
+            except: pass
+            return "done"
 
         def publish(counts: DebuggingCounts):
-            ws_conn.send(counts.to_json())
+            async def _publish(counts: DebuggingCounts):
+                await ws_conn.send(counts.to_json())
+            return rx.from_future(asyncio.ensure_future(_publish(counts)))
 
-        closed: Observable[None] = rx.timer(
-            duetime=timedelta(milliseconds=10), period=timedelta(milliseconds=10)
-        ) >> ops.concat_map(raise_on_close)
+        closed: Observable[Literal["done"]] = rx.repeat_value(()) >> ops.flat_map(
+            rx.from_future(asyncio.ensure_future(raise_on_close()))
+        )
 
         publisher: Observable[int] = counts \
             >> ops.debounce(timedelta(milliseconds=100)) \
-            >> ops.do_action(publish) \
+            >> ops.flat_map(publish) \
             >> ops.merge(closed) \
-            >> ops.catch(rx.empty()) \
-            >> ops.reduce(lambda acc, _: acc + 1, seed=0)
-        published: int = publisher.run()
-        ws_conn.close()
+            >> ops.take_while(lambda msg: msg != "done")
+        await publisher
+        await ws_conn.close()
 
         conns -= 1
-        print(f'-1 websocket connection (={conns}, published {published} messages)')
+        print(f'-1 websocket connection (={conns})')
 
-    with serve(handle, '0.0.0.0', port) as server:
+    async with serve(handle, '0.0.0.0', port) as server:
         print(f'server listening on port {port}')
-        try: server.serve_forever()
-        finally: exit(0)
+        await asyncio.get_running_loop().create_future()  # run forever
 
 if __name__ == '__main__':
-    start_server()
+    asyncio.run(start_server())
