@@ -17,5 +17,5 @@ dev-dependencies = [
 ]
 
 [tool.pyright]
-strict = ["reactive_word_cloud"]
-
+strict = ["."]
+exclude = ["reactivex", ".venv"]
