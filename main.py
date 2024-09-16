@@ -47,10 +47,8 @@ def start_server():
 
     with serve(handle, '0.0.0.0', port) as server:
         print(f'server listening on port {port}')
-        try:
-            server.serve_forever()
-        finally:
-            exit(0)
+        try: server.serve_forever()
+        finally: exit(0)
 
 if __name__ == '__main__':
     start_server()

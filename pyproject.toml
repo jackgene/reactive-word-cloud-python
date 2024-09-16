@@ -1,27 +1,21 @@
-[tool.poetry]
-name = "reactive-word-cloud"
+[project]
+name = "reactive-word-cloud-python"
 version = "0.1.0"
-description = ""
-authors = ["Jack Leow"]
+description = "Add your description here"
 readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "confluent-kafka>=2.5.3",
+    "typing-extensions>=4.12.2",
+    "websockets>=13.0.1",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-websockets = "^13.0.1"
-confluent-kafka = "^2.5.0"
-packaging = "^24.1"
-typing-extensions = "^4.12.2"
-
-[tool.poetry.scripts]
-server = "reactive_word_cloud.server:start_server"
-
-[tool.poetry.group.dev.dependencies]
-types-confluent-kafka = "^1.2.2"
-pyright = "^1.1.378"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+dev-dependencies = [
+    "pyright>=1.1.380",
+    "types-confluent-kafka>=1.2.2",
+]
 
 [tool.pyright]
 strict = ["reactive_word_cloud"]
+
