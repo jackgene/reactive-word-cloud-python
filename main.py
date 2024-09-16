@@ -67,7 +67,7 @@ async def start_server():
         conns -= 1
         print(f'-1 websocket connection (={conns})')
 
-    async with serve(handle, '0.0.0.0', port) as server:
+    async with serve(handle, '0.0.0.0', port):
         print(f'server listening on port {port}')
         await asyncio.get_running_loop().create_future()  # run forever
 
