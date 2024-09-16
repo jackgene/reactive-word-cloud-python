@@ -123,7 +123,7 @@ def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[Sen
     consumer: Consumer = Consumer(kafka_conf)
     consumer.subscribe([topic_name])
     def consume_message(consumer: Consumer) -> rx.Observable[Message]:
-        msg: Message | None = consumer.poll(timeout=1.0)
+        msg: Message | None = consumer.poll(timeout=0.1)
         return rx.just(msg) if msg is not None else rx.empty()
 
     def not_error(msg: Message) -> bool:
