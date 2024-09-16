@@ -5,9 +5,6 @@ from typing import Dict, Iterable, List, Sequence, Set, TypeVar
 import reactivex as rx
 import reactivex.operators as ops
 from confluent_kafka import Consumer, Message
-from reactivex.abc.disposable import DisposableBase
-from reactivex.abc.observer import ObserverBase
-from reactivex.abc.scheduler import SchedulerBase
 from reactivex.observable.observable import Observable
 
 from reactive_word_cloud.model import *
