@@ -2,7 +2,6 @@ import asyncio
 import sys
 import tomllib
 from datetime import timedelta
-from typing import Literal
 
 import reactivex as rx
 import reactive_word_cloud.user_input as user_input
@@ -11,6 +10,7 @@ from reactivex import operators as ops
 from reactivex.scheduler import ThreadPoolScheduler
 from reactivex.subject import BehaviorSubject
 from websockets.asyncio.server import ServerConnection, serve
+from websockets.exceptions import ConnectionClosed
 
 from reactive_word_cloud.config import *
 from reactive_word_cloud.model import DebuggingCounts, SenderAndText
@@ -42,30 +42,32 @@ async def start_server():
         conns += 1
         print(f'+1 websocket connection (={conns})')
 
-        async def raise_on_close() -> Literal["done"]:
-            try: await ws_conn.recv()
-            except: pass
-            return "done"
+        async def raise_on_close():
+            while True:
+                try: await ws_conn.recv()
+                except ConnectionClosed: raise
+                except: pass
 
         def publish(counts: DebuggingCounts):
             async def _publish(counts: DebuggingCounts):
                 await ws_conn.send(counts.to_json())
             return rx.from_future(asyncio.ensure_future(_publish(counts)))
 
-        closed: Observable[Literal["done"]] = rx.repeat_value(()) >> ops.flat_map(
-            rx.from_future(asyncio.ensure_future(raise_on_close()))
+        closed: Observable[None] = rx.from_future(
+            asyncio.ensure_future(raise_on_close())
         )
 
         publisher: Observable[int] = counts \
             >> ops.debounce(timedelta(milliseconds=100)) \
             >> ops.flat_map(publish) \
             >> ops.merge(closed) \
-            >> ops.take_while(lambda msg: msg != "done")
-        await publisher
+            >> ops.catch(rx.empty()) \
+            >> ops.reduce(lambda acc, _: acc + 1, seed=0)
+        published: int = await publisher
         await ws_conn.close()
 
         conns -= 1
-        print(f'-1 websocket connection (={conns})')
+        print(f'-1 websocket connection (={conns}) (published {published} messages)')
 
     async with serve(handle, '0.0.0.0', port):
         print(f'server listening on port {port}')
