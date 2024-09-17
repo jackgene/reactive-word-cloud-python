@@ -7,7 +7,6 @@ import reactivex as rx
 import reactive_word_cloud.user_input as user_input
 from reactivex import Observable
 from reactivex import operators as ops
-from reactivex.scheduler import ThreadPoolScheduler
 from reactivex.subject import BehaviorSubject
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
@@ -29,11 +28,14 @@ async def start_server():
         user_input_msgs = user_input.from_kafka(KafkaConfig.from_dict(config['kafka']))
     else:
         user_input_msgs = user_input.from_websockets(WebSocketsConfig.from_dict(config['websockets']))
-    WordCloudService(
-        WordCloudConfig.from_dict(config['word_cloud'])
-    ).debugging_word_counts(
-        user_input_msgs
-    ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
+    service: WordCloudService = WordCloudService(WordCloudConfig.from_dict(config['word_cloud']))
+    async def update_counts():
+        updater: Observable[DebuggingCounts] = user_input_msgs \
+            >> service.debugging_word_counts \
+            >> ops.do(counts)
+        await updater
+    asyncio.create_task(update_counts())
+
 
     port: int = HttpConfig.from_dict(config['http']).port
     conns: int = 0
@@ -67,7 +69,7 @@ async def start_server():
         await ws_conn.close()
 
         conns -= 1
-        print(f'-1 websocket connection (={conns}) (published {published} messages)')
+        print(f'-1 websocket connection (={conns}, published {published} messages)')
 
     async with serve(handle, '0.0.0.0', port):
         print(f'server listening on port {port}')
