@@ -9,7 +9,7 @@ from reactivex.subject import BehaviorSubject
 from websockets.sync.server import ServerConnection, serve
 
 from reactive_word_cloud.model import DebuggingCounts
-from reactive_word_cloud.service.word_cloud import chat_messages, debugging_word_counts
+from reactive_word_cloud.service.word_cloud import user_input, debugging_word_counts
 
 
 def start_server():
@@ -24,7 +24,7 @@ def start_server():
         DebuggingCounts(history=[], counts_by_word={})
     )
     debugging_word_counts(
-        chat_messages(kafka_conf=kafka_conf, topic_name='word-cloud.chat-message')
+        user_input(kafka_conf=kafka_conf, topic_name='word-cloud.chat-message')
     ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
     def handle(ws_conn: ServerConnection):
         print('websocket connection established')

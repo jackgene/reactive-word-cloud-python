@@ -119,7 +119,7 @@ stop_words: Set[str] = {
     'yourselves'
 }
 
-def chat_messages(kafka_conf: Dict[str, str], topic_name: str) -> Observable[SenderAndText]:
+def user_input(kafka_conf: Dict[str, str], topic_name: str) -> Observable[SenderAndText]:
     consumer: Consumer = Consumer(kafka_conf)
     consumer.subscribe([topic_name])
     def consume_message(consumer: Consumer) -> rx.Observable[Message]:
