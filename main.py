@@ -26,8 +26,13 @@ def start_server():
     debugging_word_counts(
         user_input(kafka_conf=kafka_conf, topic_name='word-cloud.chat-message')
     ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
+
+    conns: int = 0
     def handle(ws_conn: ServerConnection):
-        print('websocket connection established')
+        nonlocal conns
+        conns += 1
+        print(f'+1 websocket connection (={conns})')
+
         def raise_on_close(_: Any) -> Observable[Any]:
             try: ws_conn.recv(timeout=0)
             except TimeoutError: pass
@@ -48,7 +53,9 @@ def start_server():
             >> ops.reduce(lambda acc, _: acc + 1, seed=0)
         published: int = publisher.run()
         ws_conn.close()
-        print(f'websocket connection closed (published {published} messages)')
+
+        conns -= 1
+        print(f'-1 websocket connection (={conns}, published {published} messages)')
 
     with serve(handle, '0.0.0.0', port) as server:
         print(f'server listening on port {port}')
