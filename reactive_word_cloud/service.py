@@ -1,4 +1,3 @@
-import asyncio
 import re
 from itertools import groupby
 from typing import TypeVar
