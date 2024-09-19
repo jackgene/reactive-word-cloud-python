@@ -183,7 +183,7 @@ def update_words_for_sender(
 def count_senders_by_word(
     words_by_sender: dict[str, list[str]]
 ) -> dict[str, int]:
-    words: Sequence[str] = sorted([
+    words: list[str] = sorted([
         word 
         for _, words in words_by_sender.items()
         for word in words
@@ -206,7 +206,7 @@ def debugging_word_counts(
 ) -> Observable[DebuggingCounts]:
     def normalize_split_validate(
         msg: SenderAndText
-    ) -> tuple[SenderAndText, str, Sequence[tuple[str, bool]]]:
+    ) -> tuple[SenderAndText, str, list[tuple[str, bool]]]:
         normalized_text: str = normalize_text(sender_text=msg).text
         words: list[str] = normalized_text.split(' ')
 
@@ -214,13 +214,13 @@ def debugging_word_counts(
 
     def aggregate(
         accum: tuple[DebuggingCounts, dict[str, list[str]]],
-        next: tuple[SenderAndText, str, Sequence[tuple[str, bool]]]
+        next: tuple[SenderAndText, str, list[tuple[str, bool]]]
     ) -> tuple[DebuggingCounts, dict[str, list[str]]]:
         counts: DebuggingCounts = accum[0]
         old_words_by_sender: dict[str, list[str]] = accum[1]
         msg: SenderAndText = next[0]
         normalized_text: str = next[1]
-        split_words: Sequence[tuple[str, bool]] = next[2]
+        split_words: list[tuple[str, bool]] = next[2]
 
         extracted_words: list[ExtractedWord] = []
         extracted_word: ExtractedWord = ExtractedWord('', False, old_words_by_sender, count_senders_by_word(old_words_by_sender))
