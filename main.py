@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import tomllib
+from asyncio import CancelledError, Task
 from datetime import timedelta
 
 import reactivex as rx
@@ -34,8 +35,7 @@ async def start_server():
             >> service.debugging_word_counts \
             >> ops.do(counts)
         await updater
-    asyncio.create_task(update_counts())
-
+    update_counts_task: Task[None] = asyncio.create_task(update_counts())
 
     port: int = HttpConfig.from_dict(config['http']).port
     conns: int = 0
@@ -73,7 +73,11 @@ async def start_server():
 
     async with serve(handle, '0.0.0.0', port):
         print(f'server listening on port {port}')
-        await asyncio.get_running_loop().create_future()  # run forever
+        try:
+            await asyncio.get_running_loop().create_future()  # run forever
+        except CancelledError:
+            update_counts_task.cancel()
+            exit(0)
 
 if __name__ == '__main__':
     asyncio.run(start_server())
