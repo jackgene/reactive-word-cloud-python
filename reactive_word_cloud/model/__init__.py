@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import Dict, List, Self, Sequence
+from typing import Self
 
 
 @dataclass
@@ -11,7 +11,7 @@ class SenderAndText:
     @classmethod
     def from_json(cls, serialized: str) -> Self | None:
         try:
-            data: Dict[str, str] = json.loads(serialized)
+            data: dict[str, str] = json.loads(serialized)
             sender: str | None = data.get('s')
             text: str | None = data.get('t')
             if sender is None or text is None: return None
@@ -34,7 +34,7 @@ class SenderAndWord:
 
 @dataclass
 class Counts:
-    counts_by_word: Dict[str, int]
+    counts_by_word: dict[str, int]
 
     def to_json(self) -> str:
         return json.dumps({'countsByWord': self.counts_by_word})
@@ -44,8 +44,8 @@ class Counts:
 class ExtractedWord:
     word: str
     is_valid: bool
-    words_by_sender: Dict[str, List[str]]
-    counts_by_word: Dict[str, int]
+    words_by_sender: dict[str, list[str]]
+    counts_by_word: dict[str, int]
 
     def to_json(self) -> str:
         return json.dumps(
@@ -62,7 +62,7 @@ class ExtractedWord:
 class Event:
     chat_message: SenderAndText
     normalized_text: str
-    words: Sequence[ExtractedWord]
+    words: list[ExtractedWord]
 
     def to_json(self) -> str:
         return f'{{"chatMessage":{self.chat_message.to_json()},"normalizedText":{json.dumps(self.normalized_text)},"words":[{",".join([word.to_json() for word in self.words])}]}}'
@@ -70,8 +70,8 @@ class Event:
 
 @dataclass
 class DebuggingCounts:
-    history: List[Event]
-    counts_by_word: Dict[str, int]
+    history: list[Event]
+    counts_by_word: dict[str, int]
 
     def to_json(self) -> str:
         return f'{{"history":[{",".join([event.to_json() for event in self.history])}],"countsByWord":{json.dumps(self.counts_by_word)}}}'

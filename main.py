@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any, Dict
+from typing import Any
 
 import reactivex as rx
 from reactivex import Observable
@@ -14,7 +14,7 @@ from reactive_word_cloud.service.word_cloud import user_input, debugging_word_co
 
 def start_server():
     port: int = 9673
-    kafka_conf: Dict[str, str] = {
+    kafka_conf: dict[str, str] = {
         'bootstrap.servers': '127.0.0.1:9092',
         'group.id': 'reactive-word-cloud-python',
         'enable.auto.commit': 'false',

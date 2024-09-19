@@ -1,6 +1,6 @@
 import re
 from itertools import groupby
-from typing import Dict, Iterable, List, Sequence, Set, TypeVar
+from typing import TypeVar
 
 import reactivex as rx
 import reactivex.operators as ops
@@ -15,7 +15,7 @@ R = TypeVar('R')
 max_words_per_sender: int = 3
 min_word_len: int = 3
 max_word_len: int = 15
-stop_words: Set[str] = {
+stop_words: set[str] = {
     'about',
     'above',
     'after',
@@ -119,7 +119,7 @@ stop_words: Set[str] = {
     'yourselves'
 }
 
-def user_input(kafka_conf: Dict[str, str], topic_name: str) -> Observable[SenderAndText]:
+def user_input(kafka_conf: dict[str, str], topic_name: str) -> Observable[SenderAndText]:
     def consume_message(consumer: Consumer) -> rx.Observable[Message]:
         msg: Message | None = consumer.poll(timeout=1.0)
         return rx.just(msg) if msg is not None else rx.empty()
@@ -158,12 +158,11 @@ def split_into_words(
     sender_text: SenderAndText
 ) -> Observable[SenderAndWord]:
     text: str = sender_text.text
-    split_reversed: Iterable[str] = reversed(text.split(' '))
-    sender_words: Iterable[SenderAndWord] = [
+    words: list[str] = text.split(' ')
+    return rx.from_iterable([
         SenderAndWord(sender_text.sender, word)
-        for word in split_reversed
-    ]
-    return rx.from_iterable(sender_words)
+        for word in reversed(words)
+    ])
 
 def is_valid_word(sender_word: SenderAndWord) -> bool:
     word: str = sender_word.word
@@ -171,19 +170,19 @@ def is_valid_word(sender_word: SenderAndWord) -> bool:
         and word not in stop_words
 
 def update_words_for_sender(
-    words_by_sender: Dict[str, List[str]],
+    words_by_sender: dict[str, list[str]],
     sender_word: SenderAndWord
-) -> Dict[str, List[str]]:
+) -> dict[str, list[str]]:
     sender: str = sender_word.sender
     word: str = sender_word.word
-    old_words: List[str] = words_by_sender.get(sender, [])
-    new_words: List[str] = list(dict.fromkeys([word] + old_words))
+    old_words: list[str] = words_by_sender.get(sender, [])
+    new_words: list[str] = list(dict.fromkeys([word] + old_words))
     new_words = new_words[0:max_words_per_sender]
     return words_by_sender | {sender: new_words}
 
 def count_senders_by_word(
-    words_by_sender: Dict[str, List[str]]
-) -> Dict[str, int]:
+    words_by_sender: dict[str, list[str]]
+) -> dict[str, int]:
     words: Sequence[str] = sorted([
         word 
         for _, words in words_by_sender.items()
@@ -209,29 +208,29 @@ def debugging_word_counts(
         msg: SenderAndText
     ) -> tuple[SenderAndText, str, Sequence[tuple[str, bool]]]:
         normalized_text: str = normalize_text(sender_text=msg).text
-        words: List[str] = normalized_text.split(' ')
+        words: list[str] = normalized_text.split(' ')
 
         return (msg, normalized_text, [(word, is_valid_word(SenderAndWord('', word))) for word in words])
 
     def aggregate(
-        accum: tuple[DebuggingCounts, Dict[str, List[str]]],
+        accum: tuple[DebuggingCounts, dict[str, list[str]]],
         next: tuple[SenderAndText, str, Sequence[tuple[str, bool]]]
-    ) -> tuple[DebuggingCounts, Dict[str, List[str]]]:
+    ) -> tuple[DebuggingCounts, dict[str, list[str]]]:
         counts: DebuggingCounts = accum[0]
-        old_words_by_sender: Dict[str, List[str]] = accum[1]
+        old_words_by_sender: dict[str, list[str]] = accum[1]
         msg: SenderAndText = next[0]
         normalized_text: str = next[1]
         split_words: Sequence[tuple[str, bool]] = next[2]
 
-        extracted_words: List[ExtractedWord] = []
+        extracted_words: list[ExtractedWord] = []
         extracted_word: ExtractedWord = ExtractedWord('', False, old_words_by_sender, count_senders_by_word(old_words_by_sender))
         for (word, is_valid) in reversed(split_words):
             if is_valid:
-                old_words: List[str] # This has to be a separate line, or PyRight gets sad
+                old_words: list[str] # This has to be a separate line, or PyRight gets sad
                 old_words = extracted_word.words_by_sender.get(msg.sender, [])
-                new_words: List[str] = list(dict.fromkeys([word] + old_words))[0:max_words_per_sender]
-                new_words_by_sender: Dict[str, List[str]] = old_words_by_sender | {msg.sender: new_words}
-                counts_by_word: Dict[str, int] = count_senders_by_word(new_words_by_sender)
+                new_words: list[str] = list(dict.fromkeys([word] + old_words))[0:max_words_per_sender]
+                new_words_by_sender: dict[str, list[str]] = old_words_by_sender | {msg.sender: new_words}
+                counts_by_word: dict[str, int] = count_senders_by_word(new_words_by_sender)
                 extracted_word = ExtractedWord(
                     word, True, new_words_by_sender, counts_by_word
                 )
