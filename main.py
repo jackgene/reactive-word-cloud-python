@@ -1,6 +1,5 @@
 import tomllib
 from datetime import timedelta
-from typing import Any
 
 import reactivex as rx
 from reactivex import Observable
