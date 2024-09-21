@@ -7,12 +7,13 @@ import reactivex.operators as ops
 from confluent_kafka import Consumer, Message
 from reactivex.observable.observable import Observable
 
+from reactive_word_cloud.config import KafkaConfig
 from reactive_word_cloud.model import *
 
 L = TypeVar('L')
 R = TypeVar('R')
 
-def user_input(kafka_conf: dict[str, str], topic_name: str) -> Observable[SenderAndText]:
+def user_input_from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
     def consume_message(consumer: Consumer) -> rx.Observable[Message]:
         msg: Message | None = consumer.poll(timeout=1.0)
         return rx.just(msg) if msg is not None else rx.empty()
@@ -34,8 +35,13 @@ def user_input(kafka_conf: dict[str, str], topic_name: str) -> Observable[Sender
             print(f'consumed: {sender_text.to_json()}')
         return rx.empty() if sender_text is None else rx.just(sender_text)
 
-    consumer: Consumer = Consumer(kafka_conf)
-    consumer.subscribe([topic_name])
+    consumer: Consumer = Consumer({
+        'bootstrap.servers': ','.join(config.bootstrap_servers),
+        'group.id': config.group_id,
+        'enable.auto.commit': 'true' if config.enable_auto_commit else 'false',
+        'auto.offset.reset': config.auto_offset_reset
+    })
+    consumer.subscribe(config.topic_names)
     return rx.repeat_value(consumer) \
         >> ops.concat_map(consume_message) \
         >> ops.filter(not_error) \

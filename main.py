@@ -1,3 +1,4 @@
+import tomllib
 from datetime import timedelta
 from typing import Any
 
@@ -8,25 +9,24 @@ from reactivex.scheduler import ThreadPoolScheduler
 from reactivex.subject import BehaviorSubject
 from websockets.sync.server import ServerConnection, serve
 
+from reactive_word_cloud.config import *
 from reactive_word_cloud.model import DebuggingCounts
-from reactive_word_cloud.service import user_input, debugging_word_counts
+from reactive_word_cloud.service import debugging_word_counts, user_input_from_kafka
 
 
 def start_server():
-    port: int = 9673
-    kafka_conf: dict[str, str] = {
-        'bootstrap.servers': '127.0.0.1:9092',
-        'group.id': 'reactive-word-cloud-python',
-        'enable.auto.commit': 'false',
-        'auto.offset.reset': 'earliest'
-    }
+    with open('config.toml', 'rb') as f:
+        config: dict[str, Any] = tomllib.load(f)
+
+    kafka_config = KafkaConfig.from_dict(config['kafka'])
     counts: Observable[DebuggingCounts] = BehaviorSubject(
         DebuggingCounts(history=[], counts_by_word={})
     )
     debugging_word_counts(
-        user_input(kafka_conf=kafka_conf, topic_name='word-cloud.chat-message')
+        user_input_from_kafka(kafka_config)
     ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
 
+    port: int = HttpConfig.from_dict(config['http']).port
     conns: int = 0
     def handle(ws_conn: ServerConnection):
         nonlocal conns
