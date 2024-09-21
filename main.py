@@ -9,7 +9,7 @@ from reactivex.subject import BehaviorSubject
 from websockets.sync.server import ServerConnection, serve
 
 from reactive_word_cloud.model import DebuggingCounts
-from reactive_word_cloud.service.word_cloud import user_input, debugging_word_counts
+from reactive_word_cloud.service import user_input, debugging_word_counts
 
 
 def start_server():
