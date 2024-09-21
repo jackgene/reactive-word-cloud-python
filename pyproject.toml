@@ -19,4 +19,4 @@ dev-dependencies = [
 
 [tool.pyright]
 strict = ["."]
-exclude = ["reactivex", ".venv"]
+exclude = ["reactivex", "typings", ".venv"]
