@@ -15,7 +15,7 @@ class WordCloudConfig(AbstractConfig):
     max_words_per_sender: int
     min_word_len: int
     max_word_len: int
-    stop_words: set[str]
+    stop_words: list[str]
 
 
 @dataclass

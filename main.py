@@ -11,19 +11,20 @@ from websockets.sync.server import ServerConnection, serve
 
 from reactive_word_cloud.config import *
 from reactive_word_cloud.model import DebuggingCounts
-from reactive_word_cloud.service import debugging_word_counts, user_input_from_kafka
+from reactive_word_cloud.service import WordCloudService, user_input_from_kafka
 
 
 def start_server():
     with open('config.toml', 'rb') as f:
         config: dict[str, Any] = tomllib.load(f)
 
-    kafka_config = KafkaConfig.from_dict(config['kafka'])
     counts: Observable[DebuggingCounts] = BehaviorSubject(
         DebuggingCounts(history=[], counts_by_word={})
     )
-    debugging_word_counts(
-        user_input_from_kafka(kafka_config)
+    WordCloudService(
+        WordCloudConfig.from_dict(config['word_cloud'])
+    ).debugging_word_counts(
+        user_input_from_kafka(KafkaConfig.from_dict(config['kafka']))
     ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
 
     port: int = HttpConfig.from_dict(config['http']).port
