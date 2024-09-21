@@ -115,7 +115,7 @@ class WordCloudService:
             normalized_text: str = self.normalize_text(sender_text=msg).text
             words: list[str] = normalized_text.split(' ')
 
-            return (msg, normalized_text, [(word, self.is_valid_word(SenderAndWord('', word))) for word in words])
+            return msg, normalized_text, [(word, self.is_valid_word(SenderAndWord('', word))) for word in words]
 
         def aggregate(
             accum: tuple[DebuggingCounts, dict[str, list[str]]],
