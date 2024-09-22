@@ -24,7 +24,7 @@ def start_server():
     WordCloudService(
         WordCloudConfig.from_dict(config['word_cloud'])
     ).debugging_word_counts(
-        user_input.from_kafka(KafkaConfig.from_dict(config['kafka']))
+        user_input.from_websockets(WebSocketsConfig.from_dict(config['websockets']))
     ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
 
     port: int = HttpConfig.from_dict(config['http']).port

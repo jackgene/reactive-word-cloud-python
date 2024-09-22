@@ -1,9 +1,11 @@
 import reactivex as rx
 import reactivex.operators as ops
+import websockets.sync.client as ws_client
 from confluent_kafka import Consumer, Message
-from reactivex.observable.observable import Observable
+from reactivex import Observable
+from websockets.sync.connection import Connection
 
-from reactive_word_cloud.config import KafkaConfig
+from reactive_word_cloud.config import KafkaConfig, WebSocketsConfig
 from reactive_word_cloud.model import SenderAndText
 
 
@@ -39,4 +41,21 @@ def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
     return rx.repeat_value(consumer) \
         >> ops.concat_map(consume_message) \
         >> ops.filter(not_error) \
+        >> ops.concat_map(extract_chat_message)
+
+
+def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
+    def consume_message(ws_conn: Connection) -> Observable[str]:
+        msg: str | bytes = ws_conn.recv()
+        return rx.just(msg) if isinstance(msg, str) else rx.empty()
+
+    def extract_chat_message(json: str) -> Observable[SenderAndText]:
+        sender_text: SenderAndText | None = SenderAndText.from_json(json)
+        if sender_text is not None:
+            print(f'consumed: {sender_text.to_json()}')
+        return rx.empty() if sender_text is None else rx.just(sender_text)
+
+    ws_conn: Connection = ws_client.connect(config.url)
+    return rx.repeat_value(ws_conn) \
+        >> ops.concat_map(consume_message) \
         >> ops.concat_map(extract_chat_message)

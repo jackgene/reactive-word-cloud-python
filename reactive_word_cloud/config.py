@@ -28,5 +28,10 @@ class KafkaConfig(AbstractConfig):
 
 
 @dataclass
+class WebSocketsConfig(AbstractConfig):
+    url: str
+
+
+@dataclass
 class HttpConfig(AbstractConfig):
     port: int

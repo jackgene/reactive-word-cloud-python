@@ -113,5 +113,8 @@ group_id = "reactive-word-cloud-python"
 enable_auto_commit = false
 auto_offset_reset = "earliest"
 
+[websockets]
+url = "wss://rx-word-cloud-a6d92948462c.herokuapp.com/subscribe"
+
 [http]
 port = 9673
