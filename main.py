@@ -1,3 +1,4 @@
+import sys
 import tomllib
 from datetime import timedelta
 
@@ -10,7 +11,7 @@ from reactivex.subject import BehaviorSubject
 from websockets.sync.server import ServerConnection, serve
 
 from reactive_word_cloud.config import *
-from reactive_word_cloud.model import DebuggingCounts
+from reactive_word_cloud.model import DebuggingCounts, SenderAndText
 from reactive_word_cloud.service import WordCloudService
 
 
@@ -21,10 +22,15 @@ def start_server():
     counts: Observable[DebuggingCounts] = BehaviorSubject(
         DebuggingCounts(history=[], counts_by_word={})
     )
+    user_input_msgs: Observable[SenderAndText]
+    if len(sys.argv) > 1 and sys.argv[1] == 'kafka':
+        user_input_msgs = user_input.from_kafka(KafkaConfig.from_dict(config['kafka']))
+    else:
+        user_input_msgs = user_input.from_websockets(WebSocketsConfig.from_dict(config['websockets']))
     WordCloudService(
         WordCloudConfig.from_dict(config['word_cloud'])
     ).debugging_word_counts(
-        user_input.from_websockets(WebSocketsConfig.from_dict(config['websockets']))
+        user_input_msgs
     ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
 
     port: int = HttpConfig.from_dict(config['http']).port
