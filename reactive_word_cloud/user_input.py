@@ -2,13 +2,13 @@ import asyncio
 
 import reactivex as rx
 import reactivex.operators as ops
-import websockets.sync.client as ws_client
+import websockets.asyncio.client as ws_client
 from aiokafka import AIOKafkaConsumer, ConsumerRecord
 from reactivex import Observable
 from reactivex.abc import DisposableBase, ObserverBase, SchedulerBase
 from reactivex.disposable import Disposable
 from websockets.exceptions import ConnectionClosed
-from websockets.sync.connection import Connection
+from websockets.asyncio.connection import Connection
 
 from reactive_word_cloud.config import KafkaConfig, WebSocketsConfig
 from reactive_word_cloud.model import SenderAndText
@@ -52,9 +52,22 @@ def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
 
 
 def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
-    def consume_message(ws_conn: Connection) -> Observable[str]:
-        msg: str | bytes = ws_conn.recv()
-        return rx.just(msg) if isinstance(msg, str) else rx.empty()
+    def consume_messages(observer: ObserverBase[str], _: SchedulerBase | None) -> DisposableBase:
+        ws_conn: ws_client.connect = ws_client.connect(config.url)
+        async def consume():
+            conn: Connection
+            async with ws_conn as conn:
+                msg: str | bytes
+                async for msg in conn:
+                    if isinstance(msg, str):
+                        observer.on_next(msg)
+                observer.on_completed()
+        asyncio.create_task(consume())
+
+        def dispose():
+            asyncio.run_coroutine_threadsafe(ws_conn.connection.close(), asyncio.get_running_loop())
+
+        return Disposable(dispose)
 
     def extract_chat_message(json: str) -> Observable[SenderAndText]:
         sender_text: SenderAndText | None = SenderAndText.from_json(json)
@@ -65,8 +78,6 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
     def handle_closure(err: Exception, obs: Observable[SenderAndText]) -> Observable[SenderAndText]:
         return from_websockets(config) >> ops.delay(1) if isinstance(err, ConnectionClosed) else obs
 
-    ws_conn: Connection = ws_client.connect(config.url)
-    return rx.repeat_value(ws_conn) \
-        >> ops.concat_map(consume_message) \
+    return rx.create(consume_messages) \
         >> ops.concat_map(extract_chat_message) \
         >> ops.catch(handle_closure)
