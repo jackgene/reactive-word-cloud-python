@@ -2,6 +2,7 @@ import tomllib
 from datetime import timedelta
 
 import reactivex as rx
+import reactive_word_cloud.user_input as user_input
 from reactivex import Observable
 from reactivex import operators as ops
 from reactivex.scheduler import ThreadPoolScheduler
@@ -10,7 +11,7 @@ from websockets.sync.server import ServerConnection, serve
 
 from reactive_word_cloud.config import *
 from reactive_word_cloud.model import DebuggingCounts
-from reactive_word_cloud.service import WordCloudService, user_input_from_kafka
+from reactive_word_cloud.service import WordCloudService
 
 
 def start_server():
@@ -23,7 +24,7 @@ def start_server():
     WordCloudService(
         WordCloudConfig.from_dict(config['word_cloud'])
     ).debugging_word_counts(
-        user_input_from_kafka(KafkaConfig.from_dict(config['kafka']))
+        user_input.from_kafka(KafkaConfig.from_dict(config['kafka']))
     ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
 
     port: int = HttpConfig.from_dict(config['http']).port
