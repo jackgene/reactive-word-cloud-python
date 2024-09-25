@@ -3,6 +3,7 @@ import reactivex.operators as ops
 import websockets.sync.client as ws_client
 from confluent_kafka import Consumer, Message
 from reactivex import Observable
+from websockets.exceptions import ConnectionClosed
 from websockets.sync.connection import Connection
 
 from reactive_word_cloud.config import KafkaConfig, WebSocketsConfig
@@ -55,7 +56,11 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
             print(f'consumed: {sender_text.to_json()}')
         return rx.empty() if sender_text is None else rx.just(sender_text)
 
+    def handle_closure(err: Exception, obs: Observable[SenderAndText]) -> Observable[SenderAndText]:
+        return from_websockets(config) >> ops.delay(1) if isinstance(err, ConnectionClosed) else obs
+
     ws_conn: Connection = ws_client.connect(config.url)
     return rx.repeat_value(ws_conn) \
         >> ops.concat_map(consume_message) \
-        >> ops.concat_map(extract_chat_message)
+        >> ops.concat_map(extract_chat_message) \
+        >> ops.catch(handle_closure)
