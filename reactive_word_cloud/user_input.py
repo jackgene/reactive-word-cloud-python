@@ -58,10 +58,14 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
             conn: Connection
             async with ws_conn as conn:
                 msg: str | bytes
-                async for msg in conn:
-                    if isinstance(msg, str):
-                        observer.on_next(msg)
-                observer.on_completed()
+                try:
+                    async for msg in conn:
+                        if isinstance(msg, str):
+                            observer.on_next(msg)
+                except Exception as e:
+                    observer.on_error(e)
+                finally:
+                    observer.on_completed()
         asyncio.create_task(consume())
 
         def dispose():
