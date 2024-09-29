@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 import tomllib
 from asyncio import CancelledError, Task
@@ -15,6 +16,12 @@ from websockets.exceptions import ConnectionClosed
 from reactive_word_cloud.config import *
 from reactive_word_cloud.model import DebuggingCounts, SenderAndText
 from reactive_word_cloud.service import WordCloudService
+
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
 
 
 async def start_server():
@@ -42,7 +49,7 @@ async def start_server():
     async def handle(ws_conn: ServerConnection):
         nonlocal conns
         conns += 1
-        print(f'+1 websocket connection (={conns})')
+        logging.info(f'+1 websocket connection (={conns})')
 
         async def raise_on_close():
             while True:
@@ -69,10 +76,9 @@ async def start_server():
         await ws_conn.close()
 
         conns -= 1
-        print(f'-1 websocket connection (={conns}, published {published} messages)')
+        logging.info(f'-1 websocket connection (={conns}, published {published} messages)')
 
     async with serve(handle, '0.0.0.0', port):
-        print(f'server listening on port {port}')
         try:
             await asyncio.get_running_loop().create_future()  # run forever
         except CancelledError:

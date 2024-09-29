@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import reactivex as rx
 import reactivex.operators as ops
@@ -45,7 +46,7 @@ def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
     def extract_chat_message(msg_value: bytes) -> Observable[SenderAndText]:
         sender_text: SenderAndText | None = SenderAndText.from_json(msg_value.decode('utf-8'))
         if sender_text is not None:
-            print(f'consumed: {sender_text.to_json()}')
+            logging.info(f'consumed: {sender_text.to_json()}')
         return rx.empty() if sender_text is None else rx.just(sender_text)
 
     return rx.create(consume_messages) >> ops.concat_map(extract_chat_message)
@@ -76,7 +77,7 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
     def extract_chat_message(json: str) -> Observable[SenderAndText]:
         sender_text: SenderAndText | None = SenderAndText.from_json(json)
         if sender_text is not None:
-            print(f'consumed: {sender_text.to_json()}')
+            logging.info(f'consumed: {sender_text.to_json()}')
         return rx.empty() if sender_text is None else rx.just(sender_text)
 
     def handle_closure(err: Exception, obs: Observable[SenderAndText]) -> Observable[SenderAndText]:
