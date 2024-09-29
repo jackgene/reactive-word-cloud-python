@@ -1,54 +1,77 @@
+import asyncio
+
 import reactivex as rx
 import reactivex.operators as ops
-import websockets.sync.client as ws_client
-from confluent_kafka import Consumer, Message
+import websockets.asyncio.client as ws_client
+from aiokafka import AIOKafkaConsumer, ConsumerRecord
 from reactivex import Observable
+from reactivex.abc import DisposableBase, ObserverBase, SchedulerBase
+from reactivex.disposable import Disposable
 from websockets.exceptions import ConnectionClosed
-from websockets.sync.connection import Connection
+from websockets.asyncio.connection import Connection
 
 from reactive_word_cloud.config import KafkaConfig, WebSocketsConfig
 from reactive_word_cloud.model import SenderAndText
 
 
 def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
-    def consume_message(consumer: Consumer) -> rx.Observable[Message]:
-        msg: Message | None = consumer.poll(timeout=1.0)
-        return rx.just(msg) if msg is not None else rx.empty()
+    def consume_messages(observer: ObserverBase[bytes], _: SchedulerBase | None) -> DisposableBase:
+        consumer: AIOKafkaConsumer = AIOKafkaConsumer(
+            *config.topic_names,
+            bootstrap_servers=config.bootstrap_servers,
+            group_id=config.group_id,
+            enable_auto_commit=config.enable_auto_commit,
+            auto_offset_reset=config.auto_offset_reset
+        )
+        async def consume():
+            await consumer.start()
+            try:
+                msg: ConsumerRecord[bytes, bytes]
+                async for msg in consumer:
+                    if msg.value is not None:
+                        observer.on_next(msg.value)
+            except Exception as e:
+                observer.on_error(e)
+            finally:
+                await consumer.stop()
+                observer.on_completed()
+        asyncio.create_task(consume())
 
-    def not_error(msg: Message) -> bool:
-        return not msg.error()
+        def dispose():
+            asyncio.run_coroutine_threadsafe(consumer.stop(), asyncio.get_running_loop())
 
-    def extract_chat_message(msg: Message) -> Observable[SenderAndText]:
-        value: str | bytes | None = msg.value()
-        sender_text: SenderAndText | None
-        match value:
-            case str():
-                sender_text = SenderAndText.from_json(value)
-            case bytes():
-                sender_text = SenderAndText.from_json(value.decode('utf-8'))
-            case _:
-                sender_text = None
+        return Disposable(dispose)
+
+    def extract_chat_message(msg_value: bytes) -> Observable[SenderAndText]:
+        sender_text: SenderAndText | None = SenderAndText.from_json(msg_value.decode('utf-8'))
         if sender_text is not None:
             print(f'consumed: {sender_text.to_json()}')
         return rx.empty() if sender_text is None else rx.just(sender_text)
 
-    consumer: Consumer = Consumer({
-        'bootstrap.servers': ','.join(config.bootstrap_servers),
-        'group.id': config.group_id,
-        'enable.auto.commit': 'true' if config.enable_auto_commit else 'false',
-        'auto.offset.reset': config.auto_offset_reset
-    })
-    consumer.subscribe(config.topic_names)
-    return rx.repeat_value(consumer) \
-        >> ops.concat_map(consume_message) \
-        >> ops.filter(not_error) \
-        >> ops.concat_map(extract_chat_message)
+    return rx.create(consume_messages) >> ops.concat_map(extract_chat_message)
 
 
 def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
-    def consume_message(ws_conn: Connection) -> Observable[str]:
-        msg: str | bytes = ws_conn.recv()
-        return rx.just(msg) if isinstance(msg, str) else rx.empty()
+    def consume_messages(observer: ObserverBase[str], _: SchedulerBase | None) -> DisposableBase:
+        ws_conn: ws_client.connect = ws_client.connect(config.url)
+        async def consume():
+            conn: Connection
+            async with ws_conn as conn:
+                msg: str | bytes
+                try:
+                    async for msg in conn:
+                        if isinstance(msg, str):
+                            observer.on_next(msg)
+                except Exception as e:
+                    observer.on_error(e)
+                finally:
+                    observer.on_completed()
+        asyncio.create_task(consume())
+
+        def dispose():
+            asyncio.run_coroutine_threadsafe(ws_conn.connection.close(), asyncio.get_running_loop())
+
+        return Disposable(dispose)
 
     def extract_chat_message(json: str) -> Observable[SenderAndText]:
         sender_text: SenderAndText | None = SenderAndText.from_json(json)
@@ -59,8 +82,6 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
     def handle_closure(err: Exception, obs: Observable[SenderAndText]) -> Observable[SenderAndText]:
         return from_websockets(config) >> ops.delay(1) if isinstance(err, ConnectionClosed) else obs
 
-    ws_conn: Connection = ws_client.connect(config.url)
-    return rx.repeat_value(ws_conn) \
-        >> ops.concat_map(consume_message) \
+    return rx.create(consume_messages) \
         >> ops.concat_map(extract_chat_message) \
         >> ops.catch(handle_closure)
