@@ -57,20 +57,21 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
         ws_conn: ws_client.connect = ws_client.connect(config.url)
         async def consume():
             conn: Connection
-            async with ws_conn as conn:
-                msg: str | bytes
-                try:
-                    async for msg in conn:
+            try:
+                async with ws_conn as conn:
+                    while True:
+                        msg: str | bytes = await conn.recv()
                         if isinstance(msg, str):
                             observer.on_next(msg)
-                except Exception as e:
-                    observer.on_error(e)
-                finally:
-                    observer.on_completed()
+            except Exception as e:
+                logging.error(f'error while receiving websocket messages: {e}')
+                observer.on_error(e)
         asyncio.create_task(consume())
 
         def dispose():
-            asyncio.run_coroutine_threadsafe(ws_conn.connection.close(), asyncio.get_running_loop())
+            async def close(ws_conn: ws_client.connect):
+                await ws_conn.connection.close()
+            asyncio.run_coroutine_threadsafe(close(ws_conn), asyncio.get_running_loop())
 
         return Disposable(dispose)
 
