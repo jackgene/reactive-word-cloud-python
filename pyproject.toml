@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "aiokafka>=0.11.0",
+    "confluent-kafka>=2.5.3",
     "dacite>=1.8.1",
     "typing-extensions>=4.12.2",
     "websockets>=13.0.1",
@@ -19,4 +19,4 @@ dev-dependencies = [
 
 [tool.pyright]
 strict = ["."]
-exclude = ["reactivex", "typings", ".venv"]
+exclude = ["reactivex", ".venv"]

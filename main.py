@@ -1,17 +1,15 @@
-import asyncio
 import logging
 import sys
 import tomllib
-from asyncio import CancelledError, Task
 from datetime import timedelta
 
 import reactivex as rx
 import reactive_word_cloud.user_input as user_input
 from reactivex import Observable
 from reactivex import operators as ops
+from reactivex.scheduler import ThreadPoolScheduler
 from reactivex.subject import BehaviorSubject
-from websockets.asyncio.server import ServerConnection, serve
-from websockets.exceptions import ConnectionClosed
+from websockets.sync.server import ServerConnection, serve
 
 from reactive_word_cloud.config import *
 from reactive_word_cloud.model import DebuggingCounts, SenderAndText
@@ -24,7 +22,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S')
 
 
-async def start_server():
+def start_server():
     with open('config.toml', 'rb') as f:
         config: dict[str, Any] = tomllib.load(f)
 
@@ -36,54 +34,46 @@ async def start_server():
         user_input_msgs = user_input.from_kafka(KafkaConfig.from_dict(config['kafka']))
     else:
         user_input_msgs = user_input.from_websockets(WebSocketsConfig.from_dict(config['websockets']))
-    service: WordCloudService = WordCloudService(WordCloudConfig.from_dict(config['word_cloud']))
-    async def update_counts():
-        updater: Observable[DebuggingCounts] = user_input_msgs \
-            >> service.debugging_word_counts \
-            >> ops.do(counts)
-        await updater
-    update_counts_task: Task[None] = asyncio.create_task(update_counts())
+    WordCloudService(
+        WordCloudConfig.from_dict(config['word_cloud'])
+    ).debugging_word_counts(
+        user_input_msgs
+    ).subscribe(counts, scheduler=ThreadPoolScheduler(1))
 
     port: int = HttpConfig.from_dict(config['http']).port
     conns: int = 0
-    async def handle(ws_conn: ServerConnection):
+    def handle(ws_conn: ServerConnection):
         nonlocal conns
         conns += 1
         logging.info(f'+1 websocket connection (={conns})')
 
-        async def raise_on_close():
-            while True:
-                try: await ws_conn.recv()
-                except ConnectionClosed: raise
-                except: pass
+        def raise_on_close(_: Any) -> Observable[Any]:
+            try: ws_conn.recv(timeout=0)
+            except TimeoutError: pass
+            return rx.empty()
 
         def publish(counts: DebuggingCounts):
-            async def _publish(counts: DebuggingCounts):
-                await ws_conn.send(counts.to_json())
-            return rx.from_future(asyncio.ensure_future(_publish(counts)))
+            ws_conn.send(counts.to_json())
 
-        closed: Observable[None] = rx.from_future(
-            asyncio.ensure_future(raise_on_close())
-        )
+        closed: Observable[None] = rx.timer(
+            duetime=timedelta(milliseconds=10), period=timedelta(milliseconds=10)
+        ) >> ops.concat_map(raise_on_close)
 
         publisher: Observable[int] = counts \
             >> ops.debounce(timedelta(milliseconds=100)) \
-            >> ops.flat_map(publish) \
+            >> ops.do_action(publish) \
             >> ops.merge(closed) \
             >> ops.catch(rx.empty()) \
             >> ops.reduce(lambda acc, _: acc + 1, seed=0)
-        published: int = await publisher
-        await ws_conn.close()
+        published: int = publisher.run()
+        ws_conn.close()
 
         conns -= 1
         logging.info(f'-1 websocket connection (={conns}, published {published} messages)')
 
-    async with serve(handle, '0.0.0.0', port):
-        try:
-            await asyncio.get_running_loop().create_future()  # run forever
-        except CancelledError:
-            update_counts_task.cancel()
-            exit(0)
+    with serve(handle, '0.0.0.0', port) as server:
+        try: server.serve_forever()
+        finally: exit(0)
 
 if __name__ == '__main__':
-    asyncio.run(start_server())
+    start_server()
