@@ -71,7 +71,7 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
         def dispose():
             async def close(ws_conn: ws_client.connect):
                 await ws_conn.connection.close()
-            asyncio.run_coroutine_threadsafe(close(ws_conn), asyncio.get_running_loop())
+            asyncio.run_coroutine_threadsafe(close(ws_conn), asyncio.get_running_loop()).result()
 
         return Disposable(dispose)
 
