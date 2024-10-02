@@ -60,10 +60,10 @@ async def start_server():
         def publish(counts: DebuggingCounts):
             async def _publish(counts: DebuggingCounts):
                 await ws_conn.send(counts.to_json())
-            return rx.from_future(asyncio.ensure_future(_publish(counts)))
+            return rx.from_future(asyncio.create_task(_publish(counts)))
 
         closed: Observable[None] = rx.from_future(
-            asyncio.ensure_future(raise_on_close())
+            asyncio.create_task(raise_on_close())
         )
 
         publisher: Observable[int] = counts \
