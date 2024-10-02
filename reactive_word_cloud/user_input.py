@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from asyncio import Task
+from typing import Literal
 
 import reactivex as rx
 import reactivex.operators as ops
@@ -54,24 +56,31 @@ def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
 
 def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
     def consume_messages(observer: ObserverBase[str], _: SchedulerBase | None) -> DisposableBase:
+        done: asyncio.Semaphore = asyncio.Semaphore(0)
         ws_conn: ws_client.connect = ws_client.connect(config.url)
         async def consume():
-            conn: Connection
             try:
+                conn: Connection
                 async with ws_conn as conn:
+                    await_done_task: Task[Literal[True]] = asyncio.create_task(done.acquire())
                     while True:
-                        msg: str | bytes = await conn.recv()
+                        msgs: set[Task[str | bytes] | Task[Literal[True]]]
+                        msgs, _ = await asyncio.wait(
+                            [asyncio.create_task(conn.recv()), await_done_task],
+                            return_when=asyncio.FIRST_COMPLETED
+                        )
+                        msg: str | bytes | bool = msgs.pop().result()
                         if isinstance(msg, str):
                             observer.on_next(msg)
+                        elif msg == True:
+                            observer.on_completed()
+                            break
             except Exception as e:
                 logging.error(f'error while receiving websocket messages: {e}')
                 observer.on_error(e)
         asyncio.create_task(consume())
 
-        def dispose():
-            async def close(ws_conn: ws_client.connect):
-                await ws_conn.connection.close()
-            asyncio.run_coroutine_threadsafe(close(ws_conn), asyncio.get_running_loop()).result()
+        def dispose(): done.release()
 
         return Disposable(dispose)
 
