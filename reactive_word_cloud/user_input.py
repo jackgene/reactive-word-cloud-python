@@ -11,6 +11,7 @@ from reactivex import Observable
 from reactivex.abc import DisposableBase, ObserverBase, SchedulerBase
 from reactivex.disposable import Disposable
 from websockets.exceptions import ConnectionClosed
+from websockets.protocol import State
 from websockets.asyncio.connection import Connection
 
 from reactive_word_cloud.config import KafkaConfig, WebSocketsConfig
@@ -65,7 +66,8 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
                     await_done_task: Task[Literal[True]] = asyncio.create_task(done.acquire())
                     while True:
                         msgs: set[Task[str | bytes] | Task[Literal[True]]]
-                        msgs, _ = await asyncio.wait(
+                        pendings: set[Task[str | bytes] | Task[Literal[True]]]
+                        msgs, pendings = await asyncio.wait(
                             [asyncio.create_task(conn.recv()), await_done_task],
                             return_when=asyncio.FIRST_COMPLETED
                         )
@@ -74,13 +76,23 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
                             observer.on_next(msg)
                         elif msg == True:
                             observer.on_completed()
+                            for pending in pendings:
+                                pending.cancel()
                             break
             except Exception as e:
                 logging.error(f'error while receiving websocket messages: {e}')
                 observer.on_error(e)
-        asyncio.create_task(consume())
+        consumer_task = asyncio.create_task(consume())
 
-        def dispose(): done.release()
+        def dispose():
+            done.release()
+            def await_connection_close():
+                from time import sleep
+                while not (consumer_task.done() and ws_conn.connection.state == State.CLOSED):
+                    sleep(0.05)
+                logging.info('user input consumer WebSockets connection closed')
+            # Python seems to wait for this to complete before shutting down
+            asyncio.run_coroutine_threadsafe(asyncio.to_thread(await_connection_close), asyncio.get_running_loop())
 
         return Disposable(dispose)
 
