@@ -47,10 +47,6 @@ def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
                             for pending in pendings:
                                 pending.cancel()
                             break
-                    msg: ConsumerRecord[bytes, bytes]
-                    async for msg in consumer:
-                        if msg.value is not None:
-                            observer.on_next(msg.value)
             except Exception as e:
                 logging.error(f'error while receiving Kafka user input: {e}')
                 observer.on_error(e)
