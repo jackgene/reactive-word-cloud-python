@@ -58,7 +58,7 @@ def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
                 from time import sleep
                 while not (consumer_task.done() and consumer._closed): # type: ignore
                     sleep(0.05)
-                logging.info('user input consumer WebSockets connection closed')
+                logging.info('user input Kafka consumer connection closed')
             # Python seems to wait for this to complete before shutting down
             asyncio.run_coroutine_threadsafe(asyncio.to_thread(await_connection_close), asyncio.get_running_loop())
 
