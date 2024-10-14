@@ -28,7 +28,7 @@ def from_kafka(config: KafkaConfig) -> Observable[SenderAndText]:
             auto_offset_reset=config.auto_offset_reset,
         )
         done: Semaphore = Semaphore(0)
-        async def consume():
+        async def consume() -> None:
             try:
                 async with consumer:
                     await_done_task: Task[Literal[True]] = asyncio.create_task(done.acquire())
@@ -77,7 +77,7 @@ def from_websockets(config: WebSocketsConfig) -> Observable[SenderAndText]:
     def consume_messages(observer: ObserverBase[str], _: SchedulerBase | None) -> DisposableBase:
         ws_conn: ws_client.connect = ws_client.connect(config.url)
         done: Semaphore = Semaphore(0)
-        async def consume():
+        async def consume() -> None:
             try:
                 conn: Connection
                 async with ws_conn as conn:

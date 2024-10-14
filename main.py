@@ -24,7 +24,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S')
 
 
-async def start_server():
+async def start_server() -> None:
     with open('config.toml', 'rb') as f:
         config: dict[str, Any] = tomllib.load(f)
 
@@ -37,7 +37,7 @@ async def start_server():
     else:
         user_input_msgs = user_input.from_websockets(WebSocketsConfig.from_dict(config['websockets']))
     service: WordCloudService = WordCloudService(WordCloudConfig.from_dict(config['word_cloud']))
-    async def update_counts():
+    async def update_counts() -> None:
         updater: Observable[DebuggingCounts] = user_input_msgs \
             >> service.debugging_word_counts \
             >> ops.do(counts)
@@ -46,7 +46,7 @@ async def start_server():
 
     port: int = HttpConfig.from_dict(config['http']).port
     conns: int = 0
-    async def handle(ws_conn: ServerConnection):
+    async def handle(ws_conn: ServerConnection) -> None:
         nonlocal conns
         conns += 1
         logging.info(f'+1 websocket connection (={conns})')
