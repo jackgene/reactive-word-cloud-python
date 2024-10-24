@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Self
 
 
-@dataclass
+@dataclass(frozen=True)
 class SenderAndText:
     sender: str
     text: str
@@ -26,13 +26,13 @@ class SenderAndText:
         return f'{self.sender}: {self.text}'
 
 
-@dataclass
+@dataclass(frozen=True)
 class SenderAndWord:
     sender: str
     word: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Counts:
     counts_by_word: dict[str, int]
 
@@ -40,7 +40,7 @@ class Counts:
         return json.dumps({'countsByWord': self.counts_by_word})
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExtractedWord:
     word: str
     is_valid: bool
@@ -58,7 +58,7 @@ class ExtractedWord:
         )
     
 
-@dataclass
+@dataclass(frozen=True)
 class Event:
     chat_message: SenderAndText
     normalized_text: str
@@ -68,7 +68,7 @@ class Event:
         return f'{{"chatMessage":{self.chat_message.to_json()},"normalizedText":{json.dumps(self.normalized_text)},"words":[{",".join([word.to_json() for word in self.words])}]}}'
 
 
-@dataclass
+@dataclass(frozen=True)
 class DebuggingCounts:
     history: list[Event]
     counts_by_word: dict[str, int]
