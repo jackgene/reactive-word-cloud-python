@@ -225,8 +225,9 @@ class AIOKafkaConsumer(Generic[KT_co, VT_co]):
         client_id: str = ...,
         group_id: str | None = ...,
         group_instance_id: str | None = ...,
-        key_deserializer: Callable[[bytes], KT_co] = lambda x: x,
-        value_deserializer: Callable[[bytes], VT_co] = lambda x: x,
+        # Skip type-checking for mypy because it doesn't seem to realize KT_co and VT_co are typevars
+        key_deserializer: Callable[[bytes], KT_co] = lambda x: x,  # type: ignore
+        value_deserializer: Callable[[bytes], VT_co] = lambda x: x,  # type: ignore
         fetch_max_wait_ms: int = ...,
         fetch_max_bytes: int = ...,
         fetch_min_bytes: int = ...,
@@ -846,6 +847,7 @@ class AIOKafkaConsumer(Generic[KT_co, VT_co]):
             exceptions can be raised in iterator.
             All other KafkaError exceptions will be logged and not raised
         """
+        ...
 
     async def __aenter__(self) -> AIOKafkaConsumer[KT_co, VT_co]: ...
     async def __aexit__(
